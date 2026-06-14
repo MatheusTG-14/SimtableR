@@ -20,5 +20,10 @@ Useful links:
 \author{
 \strong{Maintainer}: Matheus Trabuco Gonzalez \email{matheustrabucogonzalez@gmail.com}
 
+Authors:
+\itemize{
+  \item Matheus Trabuco Gonzalez \email{matheustrabucogonzalez@gmail.com}
+}
+
 }
 \keyword{internal}

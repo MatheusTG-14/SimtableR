@@ -21,7 +21,9 @@ tb(
   ref = NULL,
   conf.level = 0.95,
   var.type = NULL,
-  stat.cont = "median"
+  stat.cont = "median",
+  flags = NULL,
+  labels = NULL
 )
 }
 \arguments{
@@ -62,13 +64,17 @@ Default: \code{"{or} ({lower} - {upper})"}.}
 \item{conf.level}{Numeric. Confidence level for intervals (0-1). Default: \code{0.95}.}
 
 \item{var.type}{Named character vector specifying variable types, e.g.
-\code{c(age = "continuous")}.}
+\code{c(age = "continuous")} or a scalar string \code{"continuous"}.}
 
 \item{stat.cont}{Character. \code{"mean"} (Mean/SD) or \code{"median"} (Median/IQR).
 Default: \code{"median"}.}
+
+\item{flags}{Character vector. Programmatic alternative for specifying formatting flags.}
+
+\item{labels}{Named character vector. Custom display labels for variables.}
 }
 \value{
-An object of class \code{tb} (a matrix with attributes).
+An object of class \code{c("tb", "simtab")}.
 }
 \description{
 Creates comprehensive tables for categorical or continuous variables with formatting,

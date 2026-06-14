@@ -102,7 +102,7 @@ Is there a real association, or could this pattern occur by chance?
 Set test = TRUE to automatically calculate a p-value (Chi-squared or Fisher's exact test, depending on sample size). You can also determine it manually. For frequency tables, you can set `"chsqr"` (Pearson's Chi-squared), `"fisher"` (Fisher's Exact Test) or `"mcnemar"` (McNemar).
 
 ```{r}
-tb(epitabl, smoking, disease, col, test= "chsqr") #could also use test= TRUE
+tb(epitabl, smoking, disease, col, test= "chisq") #could also use test= TRUE
 ```
 
 We see something interesting. The prevalence varies across smoking groups, and the p-value suggests this is unlikely due to chance alone.
@@ -129,7 +129,7 @@ tb(epitabl, smoking, disease, col,
 For continuous variables like age or blood pressure, we need to tell `tb()` to treat them differently:
 
 ```{r tb-continuous}
-tb(epitabl, age, disease, var.type = c(age = "continuous"))
+tb(epitabl, age, disease, var.type = "continuous")
 ```
 
 By default, you get the **median and interquartile range** (IQR)—robust statistics that aren't thrown off by outliers. If you prefer mean and standard deviation:
@@ -149,6 +149,19 @@ tb(epitabl, disease, smoking, col, strat = sex, test = TRUE)
 ```
 
 Currently, the columns now show every combination: Female-Never, Female-Former, Female-Current, Male-Never, and so on. You can visually compare patterns across strata. *Note: PRs and ORs will not be calculated in stratified tables. For adjusted estimates accounting for multiple variables simultaneously, you'll want regression (see bellow)*
+
+## Simple table Stacking using rbind
+You can combine multiple individuals tables into one by using rbind() on the output of tb(). This is useful when you want to show multiple variables in the same table, but they don't fit well into a single cross-tabulation.
+Let's say we want to show the distribution of sex and smoking status by disease status, and also show the distribution of age (as a continuous variable) by disease status. We can create three separate tables and then stack them together:
+```{r}
+t1_sex       <- tb(epitabl, sex, disease)
+t1_smoking   <- tb(epitabl, smoking, disease)
+t1_age       <- tb(epitabl, age, disease, var.type = "continuous")
+
+table1_demographics <- rbind(t1_sex, t1_smoking, t1_age)
+print(table1_demographics)
+```
+
 
 ## Exporting to Word/PowerPoint
 

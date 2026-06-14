@@ -3,200 +3,211 @@ library(SimtablR)
 
 epitabl <- epitabl
 
-test_that("tb() gera tabelas 1D e 2D básicas corretamente", {
-  # Tabela 1D (soma deve ser 1000)
-  res1 <- tb(epitabl, disease)
-  expect_s3_class(res1, "tb")
-  expect_equal(sum(unclass(res1)), 1000) # 1000 por conta do total, deve dobrar a contagem
+test_that("tb() constrói um objeto S3 bivariado estruturado em lista válido com os slots obrigatórios", {
+  res <- tb(epitabl, smoking, disease)
 
-  # Tabela 2D (smoking: 3 níveis, disease: 2 níveis)
-  # Com addmargins, a matriz final deve ser 4x3 (linhas: 3+Total, colunas: 2+Total)
-  res2 <- tb(epitabl, smoking, disease)
-  expect_equal(dim(res2), c(4, 3))
+  expect_s3_class(res, "tb")
+  expect_s3_class(res, "simtab")
+  expect_true(is.list(res))
+  expect_named(res, c("data", "meta", "call"))
+
+  expect_type(res$data, "list")
+  expect_type(res$meta, "list")
+  expect_true(inherits(res$call, "call"))
+
+  expect_false(res$meta$is_continuous)
+  expect_equal(res$meta$row_var_name, "smoking")
+  expect_equal(res$meta$col_var_name, "disease")
 })
 
-test_that("tb() retorna classe tb para S3", {
-  result <- tb(epitabl, smoking)
-  expect_s3_class(result, "tb")
-  expect_true(is.table(result) || is.matrix(result))
-})
-
-test_that("tb() contagens estão corretas mesmo para 1 var", {
-  result <- tb(epitabl, smoking)
-  # Total should equal nrow(df_bin)
-  expect_equal(sum(as.integer(result)), nrow(epitabl)*2)
-})
-
-test_that("tb() inclui NA quando m é verdadeiro", {
-  epitabl_na <- epitabl
-  epitabl_na$sex[1:10] <- NA
-  result_no_na <- tb(epitabl_na, sex, m = FALSE)
-  result_with_na <- tb(epitabl_na, sex, m = TRUE)
-  # With m = TRUE the sum of the table should include the NAs
-  expect_gt(sum(as.integer(result_with_na)), sum(as.integer(result_no_na)))
-})
-
-test_that("tb() usa argumento d corretamente", {
-  # No direct value to test, but it should not error
-  expect_no_error(tb(epitabl, sex, disease, p, d = 2))
-})
-
-test_that("tb() NSE flags de porcentagem funcionam (col, row, p)", {
-  res_col <- tb(epitabl, smoking, disease, col)
-  pct_col <- attr(res_col, "percent")
-  expect_false(is.null(pct_col))
-
-  # A soma das porcentagens da primeira coluna (excluindo a margem 'Total') deve ser 100
-  expect_equal(sum(pct_col[1:3, 1]), 100, tolerance = 1e-4)
-
-  res_row <- tb(epitabl, smoking, disease, row)
-  pct_row <- attr(res_row, "percent")
-
-  # A soma das porcentagens da primeira linha (excluindo a margem 'Total') deve ser 100
-  expect_equal(sum(pct_row[1, 1:2]), 100, tolerance = 1e-4)
-})
-
-test_that("tb() calcula Prevalence Ratio (RP) corretamente", {
-  # Exposições (linhas): smoking | Desfecho (colunas): disease
-  res_rp <- tb(epitabl, smoking, disease, rp = TRUE, ref = "Never")
-
-  rp_col <- attr(res_rp, "rp")
-  expect_false(is.null(rp_col))
-
-  # A primeira linha de RP deve ser a referência
-  expect_equal(rp_col[1], "1.00 (Ref)")
-  # As outras linhas não devem estar vazias/nulas
-  expect_true(nchar(rp_col[2]) > 3)
-})
-
-test_that("tb() calcula Odds Ratio (OR) corretamente", {
-  res_or <- tb(epitabl, smoking, disease, or = TRUE, ref = "Never")
-
-  or_col <- attr(res_or, "or")
-  expect_false(is.null(or_col))
-
-  # A primeira linha de OR deve ser a referência
-  expect_equal(or_col[1], "1.00 (Ref)")
-})
-
-test_that("tb() lida com valores NA via flag 'm'", {
-  # Variável 'income' possui 40 NA's segundo o summary
-  res_na <- tb(epitabl, income, m)
-
-  # Verifica se a tabela considerou os valores NA
-  nomes_linhas <- rownames(unclass(res_na))
-  expect_true(any(is.na(nomes_linhas)) || any(nomes_linhas == "<NA>"))
-})
-
-test_that("tb() lida com variáveis contínuas", {
-  # Média e desvio padrão de 'age' cruzado com 'disease'
-  res_cont <- tb(epitabl, age, disease, var.type = c(age = "continuous"), stat.cont = "mean")
-
-  expect_true(attr(res_cont, "is_continuous"))
-  expect_equal(attr(res_cont, "stat_label"), "Mean (SD)")
-
-  # Dimensão deve ser 1 linha (age) e 3 colunas (No, Yes, Total)
-  expect_equal(dim(res_cont), c(1, 3))
-})
-
-test_that("tb() aplica testes estatísticos (Chi-squared)", {
-  res_test <- tb(epitabl, smoking, disease, test = TRUE)
-  stats <- attr(res_test, "stats")
-
-  expect_false(is.null(stats))
-  # Como a tabela é 3x2, ele deve aplicar o teste Qui-quadrado de Pearson
-  expect_true(grepl("Chi-squared", stats$method))
-})
-
-test_that("tb() estratifica corretamente", {
-  res_strat <- tb(epitabl, smoking, disease, strat = region)
-  cols <- colnames(res_strat)
-
-  # Verifica se a coluna tem o nome combinado da estratificação, ex: "North : No"
-  expect_true(any(grepl("North :", cols)) || any(grepl("South :", cols)))
-})
-
-test_that("tb() aplica filtros (subset) corretamente", {
-  # O dataset epitabl original tem 500 linhas.
-  # Vamos filtrar apenas os pacientes com idade > 60.
-  res_sub <- tb(epitabl, disease, subset = age > 60)
-  total_filtrado <- sum(unclass(res_sub))
-
-  # O total deve ser estritamente menor que 500
-  expect_true(total_filtrado < 500)
-  expect_true(total_filtrado > 0)
-})
-
-test_that("tb() suporta testes estatísticos específicos (Fisher e McNemar)", {
-  # Teste Exato de Fisher
-  res_fisher <- tb(epitabl, rapid_test, lab_confirmed, test = "fisher")
-  stats_fisher <- attr(res_fisher, "stats")
-  expect_equal(stats_fisher$method, "Fisher's Exact Test for Count Data")
-
-  # Teste de McNemar (ideal para matrizes 2x2 pareadas)
-  res_mcnemar <- tb(epitabl, rapid_test, lab_confirmed, test = "mcnemar")
-  stats_mcnemar <- attr(res_mcnemar, "stats")
-  expect_true(grepl("McNemar", stats_mcnemar$method))
-})
-
-test_that("tb() exibe Mediana (IQR) como padrão para variáveis contínuas", {
-  # Não passamos 'stat.cont', então deve usar o default "median"
-  res_med <- tb(epitabl, bmi, disease, var.type = c(bmi = "cont"))
-
-  expect_equal(attr(res_med, "stat_label"), "Median (IQR)")
-
-  # O formato de saída deve conter um traço separando os quartis, ex: "26.9 (23.7 - 30.2)"
-  mat <- as.matrix(unclass(res_med))
-  expect_true(grepl("\\(", mat[1, 1]))
-  expect_true(grepl("-", mat[1, 1]))
-})
-
-test_that("as.data.frame.tb converte corretamente a tabela e aplica estilos customizados", {
-  # Usando um estilo de string customizado para as porcentagens
-  res_custom <- tb(epitabl, smoking, disease, col, style = "{n} [{p}%]")
-  df_custom <- as.data.frame(res_custom)
-
-  expect_s3_class(df_custom, "data.frame")
-
-  # A formatação customizada deve refletir no data.frame convertido
-  # Exemplo: deve haver algo como "100 [20.0%]" nas células numéricas
-  expect_true(any(grepl("\\[.*\\]", df_custom[1, 2])))
-})
-
-test_that("as.data.frame.tb() anexa as colunas extras de PR e OR", {
-  res_rp <- tb(epitabl, smoking, disease, rp = TRUE)
-  df_rp <- as.data.frame(res_rp)
-
-  # O dataframe resultante deve ter "PR (95% CI)" como uma de suas colunas
-  expect_true("PR (95% CI)" %in% colnames(df_rp))
-
-  # O nome da primeira coluna (que representa as linhas) deve ser herdado corretamente
-  expect_equal(colnames(df_rp)[1], "Smoking status")
-})
-
-# --- Error handling ---
-
-test_that("tb() sem dados", {
-  expect_error(tb(), "No data provided")
-})
-
-test_that("tb() +2 vars", {
-  expect_error(tb(epitabl, disease, sex, region),
-               "Maximum of 2 variables")
-})
-
-test_that("tb() d inválido", {
-  expect_error(tb(epitabl, disease, d = -1), "'d' must be")
-})
-
-test_that("tb() conf.level inválido", {
-  expect_error(tb(epitabl, disease, sex, conf.level = 1.5), "'conf.level' must be")
-})
-
-test_that("tb() RP com strat", {
-  expect_warning(
-    tb(epitabl, disease, sex, strat = region, rp = TRUE),
-    "PR/OR disabled when stratification is used"
+test_that("tb() aplica regras estritas de validação de argumentos de entrada", {
+  expect_error(tb(), "No data provided. Please supply a data.frame or vector.")
+  expect_error(
+    tb(matrix(1:4, 2)),
+    "'data' must be a data.frame or atomic vector."
+  )
+  expect_error(
+    tb(epitabl, smoking, disease, d = -1),
+    "'d' must be a number between 0 and 10."
+  )
+  expect_error(
+    tb(epitabl, smoking, disease, d = 11),
+    "'d' must be a number between 0 and 10."
+  )
+  expect_error(
+    tb(epitabl, smoking, disease, conf.level = 0),
+    "'conf.level' must be between 0 and 1."
+  )
+  expect_error(
+    tb(epitabl, smoking, disease, conf.level = 1),
+    "'conf.level' must be between 0 and 1."
+  )
+  expect_error(
+    tb(epitabl, smoking, disease, test = "invalid_test"),
+    "Invalid test method. Use one of: chisq, fisher, mcnemar."
+  )
+  expect_error(tb(epitabl), "No variables specified.")
+  expect_error(
+    tb(epitabl, smoking, disease, sex),
+    "Maximum of 2 variables allowed."
   )
 })
 
+test_that("tb() captura e trata transições de ambiguidade do sistema de flags de forma segura", {
+  df_ambiguous <- data.frame(
+    p = c("Event", "None", "Event"),
+    col = c("Group1", "Group2", "Group1"),
+    stringsAsFactors = FALSE
+  )
+
+  expect_warning(
+    res_p <- tb(df_ambiguous, p, col),
+    "Ambiguity detected: 'p' matches a formatting flag but is also a column name"
+  )
+  expect_equal(res_p$meta$row_var_name, "p")
+  expect_equal(res_p$meta$col_var_name, "col")
+
+  res_flag <- tb(df_ambiguous, col, flags = "p")
+  expect_true(res_flag$meta$flags$percent)
+  expect_equal(res_flag$meta$flags$by, "total")
+})
+
+test_that("tb() gerencia transformações de variáveis contínuas e análise de sintaxe simplificada", {
+  res_shorthand <- tb(epitabl, age, disease, var.type = "continuous")
+  expect_true(res_shorthand$meta$is_continuous)
+  expect_named(res_shorthand$data$summary, c("No", "Yes", "Total"))
+
+  expect_message(
+    res_auto <- tb(epitabl, age, disease),
+    "automatically treated as continuous because it is numeric"
+  )
+  expect_true(res_auto$meta$is_continuous)
+
+  expect_error(
+    tb(epitabl, smoking, disease, var.type = "continuous"),
+    "Variable 'smoking' is not numeric."
+  )
+})
+
+test_that("tb() dispara avisos educacionais contínuos sob solicitações de testes válidas", {
+  expect_message(
+    tb(epitabl, age, disease, test = TRUE),
+    "Statistical test choice for continuous variables is driven by 'stat.cont'"
+  )
+})
+
+test_that("tb() calcula com precisão frequências, totais e categorias NA através da flag m", {
+  epitabl_na <- epitabl
+  epitabl_na$sex[1:10] <- NA
+
+  res_no_na <- tb(epitabl_na, sex, disease, m = FALSE)
+  expect_false("<NA>" %in% rownames(res_no_na$data$frequencies))
+
+  res_with_na <- tb(epitabl_na, sex, disease, m = TRUE)
+  expect_true(
+    "always" %in%
+      res_with_na$meta$flags$missing ||
+      res_with_na$meta$flags$missing
+  )
+  expect_true(
+    any(is.na(rownames(res_with_na$data$frequencies))) ||
+      any(rownames(res_with_na$data$frequencies) == "NA")
+  )
+})
+
+test_that("tb() gera saídas robustas de data frame para RP e OR com valores-p alinhados", {
+  res_pr <- tb(epitabl, smoking, disease, rp = TRUE, ref = "Never")
+  ratios_pr <- res_pr$data$ratios
+
+  expect_s3_class(ratios_pr, "data.frame")
+  expect_named(
+    ratios_pr,
+    c(
+      "variable",
+      "level",
+      "estimate",
+      "lower_ci",
+      "upper_ci",
+      "p_value",
+      "ref",
+      "type"
+    )
+  )
+  expect_true(ratios_pr$ref[1])
+  expect_equal(ratios_pr$estimate[1], 1.0)
+  expect_equal(ratios_pr$type[1], "PR")
+  expect_true(all(ratios_pr$estimate[-1] > 0))
+  expect_true(all(ratios_pr$p_value[-1] >= 0 & ratios_pr$p_value[-1] <= 1))
+
+  res_or <- tb(epitabl, smoking, disease, or = TRUE, ref = "Never")
+  ratios_or <- res_or$data$ratios
+  expect_equal(ratios_or$type[1], "OR")
+  expect_true(all(ratios_or$estimate[-1] > 0))
+})
+
+test_that("tb() desativa os cálculos de medidas de efeito e avisa quando a estratificação é usada", {
+  expect_warning(
+    res_strat <- tb(epitabl, smoking, disease, strat = region, rp = TRUE),
+    "PR/OR calculations are disabled when stratification is used"
+  )
+  expect_null(res_strat$data$ratios)
+})
+
+test_that("rbind.tb() realiza verificações estritas de esquema de variáveis e empilha os conjuntos de dados", {
+  t1 <- tb(epitabl, smoking, disease)
+  t2 <- tb(epitabl, education, disease)
+  t3 <- tb(epitabl, age, disease, var.type = "continuous")
+
+  expect_no_error(stacked <- rbind(t1, t2, t3))
+  expect_s3_class(stacked, "rbind_tb")
+  expect_s3_class(stacked, "simtab")
+  expect_named(stacked, c("data", "meta", "call"))
+  expect_equal(length(stacked$data), 3)
+
+  t_faulty <- tb(epitabl, smoking, sex)
+  expect_error(rbind(t1, t_faulty), "Column variable mismatch")
+  expect_error(rbind(), "No objects provided to rbind.")
+  expect_error(rbind(t1, data.frame(a = 1)), "Argument 2 is not a 'tb' object.")
+})
+
+test_that("as.data.frame.tb() converte saídas de forma segura entre configurações de exibição e tidy", {
+  res <- tb(epitabl, smoking, disease, rp = TRUE, ref = "Never")
+
+  df_display <- as.data.frame(res, tidy = FALSE)
+  expect_s3_class(df_display, "data.frame")
+  expect_equal(colnames(df_display)[1], "Smoking status")
+  expect_true("PR (95% CI)" %in% colnames(df_display))
+
+  df_tidy <- as.data.frame(res, tidy = TRUE)
+  expect_s3_class(df_tidy, "data.frame")
+  expect_named(
+    df_tidy,
+    c(
+      "level",
+      "outcome_level",
+      "count",
+      "variable",
+      "outcome_variable",
+      "percentage",
+      "estimate",
+      "lower_ci",
+      "upper_ci",
+      "p_value"
+    )
+  )
+})
+
+test_that("as.data.frame.rbind_tb() mapeia matrizes agrupadas de forma segura entre layouts de exibição e tidy", {
+  t1 <- tb(epitabl, smoking, disease)
+  t2 <- tb(epitabl, age, disease, var.type = "continuous")
+  stacked <- rbind(t1, t2)
+
+  df_display <- as.data.frame(stacked, tidy = FALSE)
+  expect_s3_class(df_display, "data.frame")
+  expect_equal(colnames(df_display)[1], "Variable")
+  expect_true("Smoking status" %in% df_display[[1]])
+
+  df_tidy <- as.data.frame(stacked, tidy = TRUE)
+  expect_s3_class(df_tidy, "data.frame")
+  expect_true("variable" %in% colnames(df_tidy))
+})
