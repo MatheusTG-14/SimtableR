@@ -16,7 +16,7 @@
 #'   Default: `"{rp} ({lower} - {upper})"`.
 #' @param style.or Character. Format string for Odds Ratio.
 #'   Default: `"{or} ({lower} - {upper})"`.
-#' @param test Logical or Character. Performs statistical test on 2x2+ tables.
+#' @param test Logical or Character. Performs statistical tests on 2x2+ tables.
 #'   `TRUE` for automatic selection, or one of `"chisq"`, `"fisher"`, `"mcnemar"`.
 #' @param subset Logical expression for row filtering.
 #' @param strat Variable for column stratification. Disables PR/OR calculations.
